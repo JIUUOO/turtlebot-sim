@@ -26,7 +26,9 @@ setup(
         'console_scripts': [
             'my_first_node = my_first_package.my_first_node:main',
             'my_subscriber = my_first_package.my_subscriber:main',
-            'my_publisher = my_first_package.my_publisher:main'
+            'my_publisher = my_first_package.my_publisher:main',
+            'llm_turtle_motion = my_first_package.llm_turtle_motion:main',
+            'llm_turtle_param = my_first_package.llm_turtle_param:main',
         ],
     },
 )
