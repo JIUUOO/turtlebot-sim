@@ -1,0 +1,22 @@
+name: turtlebot-sim
+
+services:
+  turtle-smi:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.humble
+    image: turtle-smi:humble
+    container_name: turtle-smi
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    working_dir: /workspace/turtlebot-sim
+    environment:
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ..:/workspace/turtlebot-sim
+    command: bash
