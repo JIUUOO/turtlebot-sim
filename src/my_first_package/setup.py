@@ -29,6 +29,7 @@ setup(
             'my_publisher = my_first_package.my_publisher:main',
             'llm_turtle_motion = my_first_package.llm_turtle_motion:main',
             'llm_turtle_param = my_first_package.llm_turtle_param:main',
+            'llm_lidar_escape_agent = my_first_package.llm_lidar_escape_agent:main',
         ],
     },
 )
