@@ -1,62 +1,50 @@
 #!/usr/bin/env python3
+import os
+import sys
 import json
-from pathlib import Path
-
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from dotenv import load_dotenv
 from openai import OpenAI
 
 
-class LlmTurtleMotion(Node):
+class LlmTurtleController(Node):
     def __init__(self):
-        super().__init__('llm_turtle_motion')
+        # ROS 2 노드 초기화 (노드 이름: llm_turtle_controller)
+        super().__init__('llm_turtle_controller')
 
-        self.declare_parameter('cmd_vel_topic', '/cmd_vel')
-        self.declare_parameter('model', 'gpt-4o-mini')
+        # 터틀심 속도 제어 토픽(/cmd_vel)을 발행할 Publisher 생성
+        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
-        self.model = self.get_parameter('model').value
-
-        self.cmd_vel_pub = self.create_publisher(Twist, self.cmd_vel_topic, 10)
-
-        self._load_env_files()
         self.client = OpenAI()
 
-        self.get_logger().info('=== LLM TurtleBot motion agent node started ===')
-        self.get_logger().info(f'Publishing velocity commands to {self.cmd_vel_topic}')
-        self.get_logger().info('Example commands: "Move forward 2 meters", "Rotate clockwise 90 degrees"')
-
-    def _load_env_files(self):
-        repo_root = Path(__file__).resolve().parents[3]
-        load_dotenv(repo_root / '.env', override=False)
-        load_dotenv(repo_root / 'dev' / '.env', override=False)
+        self.get_logger().info('=== LLM 터틀심 제어 에이전트 노드가 시작되었습니다 ===')
+        self.get_logger().info('명령 예시: "앞으로 2미터 전진해줘", "시계방향으로 90도 회전해"')
 
     def ask_llm_and_move(self, user_command):
         """
-        Analyze a natural-language command with the OpenAI API, then drive the robot.
+        사용자의 자연어 명령을 받아 OpenAI API로 분석한 뒤, 터틀심을 구동하는 핵심 메서드
         """
-        self.get_logger().info(f"Analyzing user command: '{user_command}'")
+        self.get_logger().info(f"사용자 명령 분석 중: '{user_command}'")
 
-        # Define the function schema that the LLM should fill.
-        # This makes the LLM return structured JSON instead of free-form text.
+        # LLM에게 '추출해야 할 함수의 형태(스펙)'를 정의해 주는 도구(Tools) 리스트
+        # 이를 통해 LLM은 텍스트 대답 대신 정밀한 구조적 데이터(JSON)를 리턴
         tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "control_robot",
-                    "description": "Control the robot's linear velocity and angular velocity.",
+                    "description": "로봇의 선속도(전진/후진)와 각속도(회전)를 제어합니다.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "linear_velocity": {
                                 "type": "number",
-                                "description": "Positive moves forward in m/s, negative moves backward, 0 stops. Keep normal commands between -0.3 and 0.3."
+                                "description": "앞으로 가려면 양수(m/s), 뒤로 가려면 음수(m/s). 정지 시 0"
                             },
                             "angular_velocity": {
                                 "type": "number",
-                                "description": "Positive turns counterclockwise in rad/s, negative turns clockwise, 0 stops. Keep normal commands between -1.0 and 1.0."
+                                "description": "반시계방향(좌회전)은 양수(rad/s), 시계방향(우회전)은 음수(rad/s). 정지 시 0"
                             }
                         },
                         "required": ["linear_velocity", "angular_velocity"]
@@ -66,59 +54,55 @@ class LlmTurtleMotion(Node):
         ]
 
         try:
+            # OpenAI Chat Completion API 호출
             response = self.client.chat.completions.create(
-                model=self.model,
+                model="gpt-4o-mini",
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an AI robot interface that converts human commands "
-                            "into safe TurtleBot3 velocity parameters. Return small, "
-                            "practical speeds for simulation."
-                        ),
-                    },
+                    {"role": "system", "content": "너는 인간의 명령을 로봇 제어 파라미터로 변환하는 AI 로봇 인터페이스이다."},
                     {"role": "user", "content": user_command}
                 ],
                 tools=tools,
-                tool_choice={"type": "function", "function": {"name": "control_robot"}}
+                tool_choice={"type": "function", "function": {"name": "control_robot"}} # 이 함수를 반드시 쓰도록 강제
             )
 
+            # LLM이 판단해서 채워준 함수의 인자(Arguments)값 추출
             tool_call = response.choices[0].message.tool_calls[0]
             arguments = json.loads(tool_call.function.arguments)
 
-            linear_v = self._clamp(float(arguments.get("linear_velocity", 0.0)), -0.3, 0.3)
-            angular_v = self._clamp(float(arguments.get("angular_velocity", 0.0)), -1.0, 1.0)
+            linear_v = arguments.get("linear_velocity", 0.0)
+            angular_v = arguments.get("angular_velocity", 0.0)
 
-            self.get_logger().info(f"LLM result -> linear velocity: {linear_v} m/s, angular velocity: {angular_v} rad/s")
+            self.get_logger().info(f"▶ LLM 해석 결과 -> 선속도: {linear_v} m/s, 각속도: {angular_v} rad/s")
 
+            # ROS 2 메시지 생성 및 발행
             twist_msg = Twist()
-            twist_msg.linear.x = linear_v
-            twist_msg.angular.z = angular_v
+            twist_msg.linear.x = float(linear_v)   # 전진/후진 속도 지정
+            twist_msg.angular.z = float(angular_v) # 회전 속도 지정
 
+            # 터틀심에게 토픽 전송 (거북이가 움직이는 시점)
             self.cmd_vel_pub.publish(twist_msg)
-            self.get_logger().info("ROS 2 topic published successfully.")
+            self.get_logger().info("✔ ROS 2 토픽 발행 완료!")
 
         except Exception as e:
-            self.get_logger().error(f"An error occurred: {str(e)}")
-
-    @staticmethod
-    def _clamp(value, minimum, maximum):
-        return max(minimum, min(maximum, value))
+            self.get_logger().error(f"오류가 발생했습니다: {str(e)}")
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = LlmTurtleMotion()
+    node = LlmTurtleController()
 
     try:
         while rclpy.ok():
-            user_input = input("\n[Enter a command (q to quit)]: ")
+            user_input = input("\n[명령을 입력하세요 (종료하려면 q)]: ")
             if user_input.lower() == 'q':
                 break
             if user_input.strip() == '':
                 continue
 
+            # 자연어 명령을 해석하고 로봇을 움직이는 함수 호출
             node.ask_llm_and_move(user_input)
+
+            # ROS 2 이벤트 통신 처리 (스핀을 짧게 주어 이벤트 처리 유도)
             rclpy.spin_once(node, timeout_sec=0.1)
 
     except KeyboardInterrupt:

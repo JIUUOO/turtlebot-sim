@@ -1,0 +1,5 @@
+services:
+  turtle-sim:
+    platform: linux/amd64
+    image: turtle-sim:humble-amd64
+    container_name: turtle-sim-amd64

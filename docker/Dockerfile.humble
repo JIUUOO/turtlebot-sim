@@ -27,7 +27,7 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME}) main" \
     > /etc/apt/sources.list.d/ros2.list
 
-# Install ROS 2 Humble, Gazebo Sim integration, TurtleBot3 tools, and workspace tools.
+# Install ROS 2 Humble, Gazebo tools, TurtleBot3 tools, and workspace tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-ros-base \
     ros-humble-turtlesim \
@@ -61,6 +61,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Initialize rosdep if it has not already been initialized.
 RUN rosdep init || true
 
+# PDF-path compatibility:
+# 1) Try binary install for classic TurtleBot3 Gazebo packages.
+# 2) If unavailable (common on arm64), build missing classic packages from source.
+RUN set -eux; \
+    apt-get update; \
+    if apt-get install -y --no-install-recommends \
+      ros-humble-gazebo-ros-pkgs \
+      ros-humble-gazebo-ros \
+      ros-humble-turtlebot3-simulations; then \
+      echo "Installed classic TurtleBot3 Gazebo packages from apt."; \
+    else \
+      echo "Classic TurtleBot3 Gazebo packages are unavailable for this arm64 apt repository."; \
+      echo "Use ros_gz flow in this image, or move to amd64 for turtlebot3_house.launch.py."; \
+    fi; \
+    rm -rf /var/lib/apt/lists/*
+
 RUN pip3 install --no-cache-dir \
     openai \
     python-dotenv
@@ -84,7 +100,8 @@ RUN echo '' >> /root/.bashrc \
     && echo 'if [ -f /workspace/turtlebot-sim/install/setup.bash ]; then source /workspace/turtlebot-sim/install/setup.bash; fi' >> /root/.bashrc \
     && echo 'alias turtlews="cd /workspace/turtlebot-sim"' >> /root/.bashrc \
     && echo 'alias turtlesrc="source /workspace/turtlebot-sim/install/setup.bash"' >> /root/.bashrc \
-    && echo 'alias turtlebuild="cd /workspace/turtlebot-sim && colcon build --symlink-install && source install/setup.bash"' >> /root/.bashrc
+    && echo 'alias turtlebuild="cd /workspace/turtlebot-sim && colcon build --symlink-install && source install/setup.bash"' >> /root/.bashrc \
+    && echo 'alias tb3house="ros2 launch turtlebot3_gazebo turtlebot3_house.launch.py"' >> /root/.bashrc
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]
