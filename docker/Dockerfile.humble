@@ -2,6 +2,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
+ENV TURTLEBOT3_MODEL=burger
 
 SHELL ["/bin/bash", "-c"]
 
@@ -26,12 +27,19 @@ RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME}) main" \
     > /etc/apt/sources.list.d/ros2.list
 
-# Install ROS 2 Humble, turtlesim, and workspace development tools.
+# Install ROS 2 Humble, Gazebo Sim integration, TurtleBot3 tools, and workspace tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-ros-base \
     ros-humble-turtlesim \
+    ros-humble-ros-gz \
+    ros-humble-ros-gz-sim-demos \
+    ros-humble-turtlebot3 \
+    ros-humble-turtlebot3-description \
+    ros-humble-turtlebot3-teleop \
+    ros-humble-turtlebot3-cartographer \
     ros-humble-geometry-msgs \
     ros-humble-rcl-interfaces \
+    ros-humble-sensor-msgs \
     ros-humble-std-srvs \
     python3-pip \
     python3-dev \
@@ -72,6 +80,7 @@ RUN chmod +x /entrypoint.sh
 RUN echo '' >> /root/.bashrc \
     && echo '# ROS 2 workspace setup' >> /root/.bashrc \
     && echo 'source /opt/ros/humble/setup.bash' >> /root/.bashrc \
+    && echo 'export TURTLEBOT3_MODEL=burger' >> /root/.bashrc \
     && echo 'if [ -f /workspace/turtlebot-sim/install/setup.bash ]; then source /workspace/turtlebot-sim/install/setup.bash; fi' >> /root/.bashrc \
     && echo 'alias turtlews="cd /workspace/turtlebot-sim"' >> /root/.bashrc \
     && echo 'alias turtlesrc="source /workspace/turtlebot-sim/install/setup.bash"' >> /root/.bashrc \
