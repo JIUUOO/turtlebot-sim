@@ -1,12 +1,12 @@
 name: turtlebot-sim
 
 services:
-  turtle-smi:
+  turtle-sim:
     build:
       context: ..
       dockerfile: docker/Dockerfile.humble
-    image: turtle-smi:humble
-    container_name: turtle-smi
+    image: turtle-sim:humble
+    container_name: turtle-sim
     network_mode: host
     ipc: host
     stdin_open: true
